@@ -4,7 +4,7 @@
 ### AnyKernel setup
 # global properties
 properties() { '
-kernel.string=FlopKernel v2.0 by @Flopster101
+kernel.string=FlopKernel v2.1 by @Flopster101
 do.devicecheck=1
 do.modules=0
 do.systemless=0
