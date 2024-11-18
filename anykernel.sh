@@ -4,13 +4,15 @@
 ### AnyKernel setup
 # global properties
 properties() { '
-kernel.string=FlopKernel v2.1 by @Flopster101
+kernel.string=Basic kernel for s5e8825 (Unified) by @Flopster101
 do.devicecheck=1
 do.modules=0
 do.systemless=0
 do.cleanup=1
 do.cleanuponabort=0
 device.name1=a25x
+device.name2=a53x
+device.name3=a33x
 supported.versions=14.0
 supported.patchlevels=
 supported.vendorpatchlevels=
