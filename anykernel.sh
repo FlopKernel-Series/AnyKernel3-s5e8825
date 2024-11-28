@@ -4,7 +4,7 @@
 ### AnyKernel setup
 # global properties
 properties() { '
-kernel.string=Basic kernel for s5e8825 (Unified) by @Flopster101
+kernel.string=FloppyKernel for Exynos 1280 (unified) by @Flopster101
 do.devicecheck=1
 do.modules=0
 do.systemless=0
