@@ -17,7 +17,7 @@ device.name4=m33x
 device.name5=m34x
 device.name6=gta4xls
 device.name7=gta4xlswifi
-supported.versions=14.0-15.0
+supported.versions=12.0-15.0
 supported.patchlevels=
 supported.vendorpatchlevels=
 '; } # end properties
