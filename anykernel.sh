@@ -17,6 +17,7 @@ device.name4=m33x
 device.name5=m34x
 device.name6=gta4xls
 device.name7=gta4xlswifi
+device.name8=f34x
 supported.versions=12.0-15.0
 supported.patchlevels=
 supported.vendorpatchlevels=
