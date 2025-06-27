@@ -41,6 +41,43 @@ PATCH_VBMETA_FLAG=auto;
 # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
 . tools/ak3-core.sh;
 
+ui_print "Detecting ROM type for patching..."
+
+patch_for_aosp=1;
+if [ ! -f /vendor/build.prop ]; then
+  ui_print "- Mounting /vendor"
+  mount -o ro /vendor 2>/dev/null || mount -o ro /dev/block/mapper/vendor /vendor 2>/dev/null;
+fi
+
+if [ -d /vendor/overlay/ConnectivityOverlay ] || [ -d /vendor/overlay/TetheringOverlay ]; then
+  ui_print "-> OneUI (Stock) ROM detected."
+  ui_print "-> No patch needed, using default cmdline."
+  patch_for_aosp=0;
+else
+  ui_print "-> AOSP-based ROM detected"
+fi
+
+# Apply the patch only if we've determined it's an AOSP ROM.
+if [ "$patch_for_aosp" -eq 1 ]; then
+  ui_print " "
+  ui_print "Patching kernel for AOSP compatibility..."
+  ui_print "- aosp_mode=0 -> aosp_mode=1"
+
+  # Use the magiskboot binary from the tools folder to perform the hex patch on the kernel Image file.
+  # Original string: "aosp_mode=0" -> Hex: 616f73705f6d6f64653d30
+  # New string:      "aosp_mode=1" -> Hex: 616f73705f6d6f64653d31
+  $BIN/magiskboot hexpatch $AKHOME/Image \
+    616f73705f6d6f64653d30 \
+    616f73705f6d6f64653d31
+
+  if [ $? -eq 0 ]; then
+    ui_print "-> Kernel successfully patched."
+  else
+    ui_print "-> ERROR: Kernel hex patching failed! Aborting installation."
+    exit 1
+  fi
+fi
+
 # boot install
 dump_boot; # use split_boot to skip ramdisk unpack, e.g. for devices with init_boot ramdisk
 
