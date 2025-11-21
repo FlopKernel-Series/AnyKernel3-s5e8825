@@ -1,0 +1,1 @@
+bool: superfloppy | Unlocked | CPU and GPU overclock for Floppy1280. Also disables undervolting.
