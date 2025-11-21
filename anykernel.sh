@@ -78,6 +78,53 @@ if [ "$patch_for_aosp" -eq 1 ]; then
   fi
 fi
 
+ui_print " "
+ui_print "Checking for unlocked mode feature flag..."
+
+patch_for_unlocked=0;
+
+# Check if /cache is mounted, try to mount if not
+cache_mounted=0;
+if mountpoint -q /cache 2>/dev/null; then
+  cache_mounted=1;
+else
+  ui_print "Mounting /cache..."
+  if mount /cache 2>/dev/null; then
+    cache_mounted=1;
+  else
+    ui_print "Warning: Cannot mount /cache, unlocked flag will not be checked"
+  fi
+fi
+
+# Check for feature flag file if /cache is accessible
+if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && grep -q "superfloppy" /cache/fk_feat 2>/dev/null; then
+  patch_for_unlocked=1;
+fi
+
+# Apply the patch only if superfloppy feature is enabled
+if [ "$patch_for_unlocked" -eq 1 ]; then
+  ui_print "Unlocked mode: Enabled"
+  ui_print " "
+  ui_print "Patching kernel for unlocked mode..."
+  ui_print "superfloppy=0 -> superfloppy=1"
+
+  # Use the magiskboot binary from the tools folder to perform the hex patch on the kernel Image file.
+  # Original string: "superfloppy=0" -> Hex: 7375706572666c6f7070793d30
+  # New string:      "superfloppy=1" -> Hex: 7375706572666c6f7070793d31
+  $BIN/magiskboot hexpatch $AKHOME/Image \
+    7375706572666c6f7070793d30 \
+    7375706572666c6f7070793d31
+
+  if [ $? -eq 0 ]; then
+    ui_print "Kernel successfully patched for unlocked mode."
+  else
+    ui_print "ERROR: Kernel hex patching for unlocked mode failed! Aborting installation."
+    exit 1
+  fi
+else
+  ui_print "Unlocked mode: Disabled"
+fi
+
 # boot install
 dump_boot; # use split_boot to skip ramdisk unpack, e.g. for devices with init_boot ramdisk
 
