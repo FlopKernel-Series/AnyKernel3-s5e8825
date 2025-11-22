@@ -6,9 +6,9 @@
 
 import os
 import sys
-import subprocess
 import shutil
 import binascii
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
@@ -16,6 +16,83 @@ from pathlib import Path
 def generate_hex_patch(text):
     """Convert text to hex string using Python's built-in binascii (much faster than subprocess)."""
     return binascii.hexlify(text.encode('utf-8')).decode('ascii')
+
+
+def copy_directory_excluding(src, dst, exclude_patterns):
+    """Copy directory tree excluding specified patterns (replaces rsync)."""
+    src = Path(src)
+    dst = Path(dst)
+
+    def should_exclude(path):
+        path_str = str(path)
+        # Check both full path and just the name
+        path_name = Path(path).name
+        for pattern in exclude_patterns:
+            if pattern in path_str or pattern == path_name:
+                return True
+        return False
+
+    if dst.exists():
+        shutil.rmtree(dst)
+    dst.mkdir(parents=True, exist_ok=True)
+
+    for root, dirs, files in os.walk(src):
+        root_path = Path(root)
+        # Filter out excluded directories
+        dirs[:] = [d for d in dirs if not should_exclude(root_path / d)]
+
+        # Calculate relative path for destination
+        rel_root = root_path.relative_to(src)
+        if str(rel_root) == '.':
+            dst_root = dst
+        else:
+            dst_root = dst / rel_root
+
+        # Create destination directory if needed
+        dst_root.mkdir(parents=True, exist_ok=True)
+
+        # Copy files
+        for file in files:
+            src_file = root_path / file
+            if not should_exclude(src_file):
+                dst_file = dst_root / file
+                shutil.copy2(src_file, dst_file)
+
+
+def create_zip_from_directory(directory, zip_path, exclude_patterns=None):
+    """Create a zip file from a directory (replaces zip command)."""
+    directory = Path(directory)
+    zip_path = Path(zip_path)
+
+    if exclude_patterns is None:
+        exclude_patterns = ['*.git*', '*.github*', 'README.md']
+
+    def should_exclude(path):
+        path_str = str(path)
+        path_name = Path(path).name
+        for pattern in exclude_patterns:
+            # Simple pattern matching
+            if '*' in pattern:
+                # Convert glob pattern to simple check
+                pattern_base = pattern.replace('*', '')
+                if pattern_base in path_str:
+                    return True
+            elif pattern == path_str or pattern == path_name or path_str.endswith(pattern):
+                return True
+        return False
+
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(directory):
+            root_path = Path(root)
+            # Filter out excluded directories
+            dirs[:] = [d for d in dirs if not should_exclude(root_path / d)]
+
+            for file in files:
+                file_path = root_path / file
+                if not should_exclude(file_path):
+                    # Calculate relative path for archive
+                    arcname = file_path.relative_to(directory)
+                    zipf.write(file_path, arcname)
 
 
 def process_bool_type(flag, feature_name, comment, script_dir, patcher_template, output_dir, date):
@@ -36,16 +113,11 @@ def process_bool_type(flag, feature_name, comment, script_dir, patcher_template,
     enable_work_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy patcher template (exclude build artifacts)
-    subprocess.run([
-        'rsync', '-a',
-        '--exclude=out',
-        '--exclude=patcher_zips',
-        '--exclude=generate_patchers.sh',
-        '--exclude=generate_patchers.py',
-        '--exclude=features.txt',
-        f"{patcher_template}/",
-        f"{enable_work_dir}/"
-    ], check=True)
+    copy_directory_excluding(
+        patcher_template,
+        enable_work_dir,
+        ['out', 'patcher_zips', 'generate_patchers.sh', 'generate_patchers.py', 'features.txt']
+    )
 
     # Create action, feature, and patch files
     (enable_work_dir / "patcher_action").write_text("enable")
@@ -57,10 +129,7 @@ def process_bool_type(flag, feature_name, comment, script_dir, patcher_template,
     (enable_work_dir / "patcher_patch_new").write_text(patch_new_enable)
 
     # Create zip
-    subprocess.run([
-        'zip', '-r9', '-q', str(enable_zip),
-        '.', '-x', '*.git*', '*.github*', 'README.md'
-    ], cwd=enable_work_dir, check=True, stdout=subprocess.DEVNULL)
+    create_zip_from_directory(enable_work_dir, enable_zip)
 
     shutil.rmtree(enable_work_dir)
     print(f"  Created: {enable_zip.name}")
@@ -73,16 +142,11 @@ def process_bool_type(flag, feature_name, comment, script_dir, patcher_template,
     disable_work_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy patcher template (exclude build artifacts)
-    subprocess.run([
-        'rsync', '-a',
-        '--exclude=out',
-        '--exclude=patcher_zips',
-        '--exclude=generate_patchers.sh',
-        '--exclude=generate_patchers.py',
-        '--exclude=features.txt',
-        f"{patcher_template}/",
-        f"{disable_work_dir}/"
-    ], check=True)
+    copy_directory_excluding(
+        patcher_template,
+        disable_work_dir,
+        ['out', 'patcher_zips', 'generate_patchers.sh', 'generate_patchers.py', 'features.txt']
+    )
 
     # Create action, feature, and patch files
     (disable_work_dir / "patcher_action").write_text("disable")
@@ -94,10 +158,7 @@ def process_bool_type(flag, feature_name, comment, script_dir, patcher_template,
     (disable_work_dir / "patcher_patch_new").write_text(patch_new_disable)
 
     # Create zip
-    subprocess.run([
-        'zip', '-r9', '-q', str(disable_zip),
-        '.', '-x', '*.git*', '*.github*', 'README.md'
-    ], cwd=disable_work_dir, check=True, stdout=subprocess.DEVNULL)
+    create_zip_from_directory(disable_work_dir, disable_zip)
 
     shutil.rmtree(disable_work_dir)
     print(f"  Created: {disable_zip.name}")
@@ -138,16 +199,11 @@ def process_int_type(flag, range_min, range_max, feature_name, general_desc, val
         value_work_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy patcher template (exclude build artifacts)
-        subprocess.run([
-            'rsync', '-a',
-            '--exclude=out',
-            '--exclude=patcher_zips',
-            '--exclude=generate_patchers.sh',
-            '--exclude=generate_patchers.py',
-            '--exclude=features.txt',
-            f"{patcher_template}/",
-            f"{value_work_dir}/"
-        ], check=True)
+        copy_directory_excluding(
+            patcher_template,
+            value_work_dir,
+            ['out', 'patcher_zips', 'generate_patchers.sh', 'generate_patchers.py', 'features.txt']
+        )
 
         # Create action, feature, and patch files
         (value_work_dir / "patcher_action").write_text("set")
@@ -162,10 +218,7 @@ def process_int_type(flag, range_min, range_max, feature_name, general_desc, val
         (value_work_dir / "patcher_patch_new").write_text(patch_new_set)
 
         # Create zip
-        subprocess.run([
-            'zip', '-r9', '-q', str(value_zip),
-            '.', '-x', '*.git*', '*.github*', 'README.md'
-        ], cwd=value_work_dir, check=True, stdout=subprocess.DEVNULL)
+        create_zip_from_directory(value_work_dir, value_zip)
 
         shutil.rmtree(value_work_dir)
         print(f"    Created: {value_zip.name}")
@@ -178,16 +231,11 @@ def process_int_type(flag, range_min, range_max, feature_name, general_desc, val
     disable_work_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy patcher template (exclude build artifacts)
-    subprocess.run([
-        'rsync', '-a',
-        '--exclude=out',
-        '--exclude=patcher_zips',
-        '--exclude=generate_patchers.sh',
-        '--exclude=generate_patchers.py',
-        '--exclude=features.txt',
-        f"{patcher_template}/",
-        f"{disable_work_dir}/"
-    ], check=True)
+    copy_directory_excluding(
+        patcher_template,
+        disable_work_dir,
+        ['out', 'patcher_zips', 'generate_patchers.sh', 'generate_patchers.py', 'features.txt']
+    )
 
     # Generate hex patch values for disable (flag=N -> flag=-1)
     # Note: The patcher will try all values in the range dynamically
@@ -206,10 +254,7 @@ def process_int_type(flag, range_min, range_max, feature_name, general_desc, val
     (disable_work_dir / "patcher_patch_new").write_text(patch_new_disable)
 
     # Create zip
-    subprocess.run([
-        'zip', '-r9', '-q', str(disable_zip),
-        '.', '-x', '*.git*', '*.github*', 'README.md'
-    ], cwd=disable_work_dir, check=True, stdout=subprocess.DEVNULL)
+    create_zip_from_directory(disable_work_dir, disable_zip)
 
     shutil.rmtree(disable_work_dir)
     print(f"  Created: {disable_zip.name}")
