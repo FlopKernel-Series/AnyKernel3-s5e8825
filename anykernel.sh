@@ -154,6 +154,35 @@ if [ "$patch_for_perm" -eq 1 ]; then
   fi
 fi
 
+patch_for_ems_efficient=0;
+
+# Check for feature flag file if /cache is accessible
+if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && grep -q "ems_efficient" /cache/fk_feat 2>/dev/null; then
+  patch_for_ems_efficient=1;
+fi
+
+# Apply the patch only if ems_efficient feature is enabled
+if [ "$patch_for_ems_efficient" -eq 1 ]; then
+  ui_print "EMS efficient mode: Enabled"
+  ui_print " "
+  ui_print "Patching kernel for EMS efficient mode..."
+  ui_print "ems_efficient=0 -> ems_efficient=1"
+
+  # Use the magiskboot binary from the tools folder to perform the hex patch on the kernel Image file.
+  # Original string: "ems_efficient=0" -> Hex: 656d735f656666696369656e743d30
+  # New string:      "ems_efficient=1" -> Hex: 656d735f656666696369656e743d31
+  $BIN/magiskboot hexpatch $AKHOME/Image \
+    656d735f656666696369656e743d30 \
+    656d735f656666696369656e743d31
+
+  if [ $? -eq 0 ]; then
+    ui_print "Kernel successfully patched for EMS efficient mode."
+  else
+    ui_print "ERROR: Kernel hex patching for EMS efficient mode failed! Aborting installation."
+    exit 1
+  fi
+fi
+
 # boot install
 dump_boot; # use split_boot to skip ramdisk unpack, e.g. for devices with init_boot ramdisk
 
