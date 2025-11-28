@@ -1,3 +1,5 @@
 bool: superfloppy | Unlocked | CPU and GPU overclock for Floppy1280. Also disables undervolting.
 
 bool: force_perm | Permissive | Force SELinux permissive mode.
+
+bool: ems_efficient | EMSefficient | Enable EMS efficient mode.
