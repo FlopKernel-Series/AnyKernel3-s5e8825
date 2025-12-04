@@ -189,27 +189,22 @@ fi
 
 if [ "$IS_INT_TYPE" -eq 1 ]; then
   # For int types, try multiple old values based on the defined range
-  # Build list: range values, then -1
-  # Use expr for sh compatibility
-  i=$RANGE_MIN
-  while [ "$i" -le "$RANGE_MAX" ] 2>/dev/null; do
-    PATCH_OLD_TRY=$(echo -n "${FEATURE_FLAG}=${i}" | xxd -p | tr -d '\n' 2>/dev/null)
-    if [ -n "$PATCH_OLD_TRY" ] && [ -n "$PATCH_NEW" ]; then
-      $BIN/magiskboot hexpatch "$KERNEL_FILE" \
-        "$PATCH_OLD_TRY" \
-        "$PATCH_NEW" 2>/dev/null
-      if [ $? -eq 0 ]; then
-        PATCH_SUCCESS=1
-        break
-      fi
-    fi
-    # Increment using expr for sh compatibility
-    i=$(expr "$i" + 1) 2>/dev/null || break
-  done
+  # Try -1 first (default state), then 0 (reserved), then 1-127
 
-  # If not successful yet, try -1
+  # Try -1 first (default/disabled state)
+  PATCH_OLD_TRY=$(echo -n "${FEATURE_FLAG}=-1" | xxd -p | tr -d '\n' 2>/dev/null)
+  if [ -n "$PATCH_OLD_TRY" ] && [ -n "$PATCH_NEW" ]; then
+    $BIN/magiskboot hexpatch "$KERNEL_FILE" \
+      "$PATCH_OLD_TRY" \
+      "$PATCH_NEW" 2>/dev/null
+    if [ $? -eq 0 ]; then
+      PATCH_SUCCESS=1
+    fi
+  fi
+
+  # If not successful, try 0 (reserved/transition state)
   if [ "$PATCH_SUCCESS" -eq 0 ]; then
-    PATCH_OLD_TRY=$(echo -n "${FEATURE_FLAG}=-1" | xxd -p | tr -d '\n' 2>/dev/null)
+    PATCH_OLD_TRY=$(echo -n "${FEATURE_FLAG}=0" | xxd -p | tr -d '\n' 2>/dev/null)
     if [ -n "$PATCH_OLD_TRY" ] && [ -n "$PATCH_NEW" ]; then
       $BIN/magiskboot hexpatch "$KERNEL_FILE" \
         "$PATCH_OLD_TRY" \
@@ -218,6 +213,25 @@ if [ "$IS_INT_TYPE" -eq 1 ]; then
         PATCH_SUCCESS=1
       fi
     fi
+  fi
+
+  # If not successful, try values 1 to RANGE_MAX
+  if [ "$PATCH_SUCCESS" -eq 0 ] && [ "$RANGE_MAX" -ge 1 ]; then
+    i=1
+    while [ "$i" -le "$RANGE_MAX" ] 2>/dev/null; do
+      PATCH_OLD_TRY=$(echo -n "${FEATURE_FLAG}=${i}" | xxd -p | tr -d '\n' 2>/dev/null)
+      if [ -n "$PATCH_OLD_TRY" ] && [ -n "$PATCH_NEW" ]; then
+        $BIN/magiskboot hexpatch "$KERNEL_FILE" \
+          "$PATCH_OLD_TRY" \
+          "$PATCH_NEW" 2>/dev/null
+        if [ $? -eq 0 ]; then
+          PATCH_SUCCESS=1
+          break
+        fi
+      fi
+      # Increment using arithmetic expansion for better compatibility
+      i=$((i + 1))
+    done
   fi
 else
   # For bool types, use the provided old value (pre-generated in zip)
