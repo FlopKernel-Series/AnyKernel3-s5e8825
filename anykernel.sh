@@ -81,7 +81,7 @@ fi
 ui_print " "
 ui_print "Checking for unlocked mode feature flag..."
 
-patch_for_unlocked=0;
+superfloppy_mode=-1;
 
 # Check if /cache is mounted, try to mount if not
 cache_mounted=0;
@@ -97,29 +97,85 @@ else
 fi
 
 # Check for feature flag file if /cache is accessible
-if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && grep -q "superfloppy" /cache/fk_feat 2>/dev/null; then
-  patch_for_unlocked=1;
+if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
+  # Extract superfloppy value from /cache/fk_feat (format: "superfloppy=1", "superfloppy=2", etc.)
+  superfloppy_line=$(grep "^superfloppy=" /cache/fk_feat 2>/dev/null | head -1)
+  if [ -n "$superfloppy_line" ]; then
+    superfloppy_mode=$(echo "$superfloppy_line" | cut -d'=' -f2)
+    # Validate mode is 1, 2, or 3
+    if [ "$superfloppy_mode" != "1" ] && [ "$superfloppy_mode" != "2" ] && [ "$superfloppy_mode" != "3" ]; then
+      superfloppy_mode=-1
+    fi
+  fi
 fi
 
-# Apply the patch only if superfloppy feature is enabled
-if [ "$patch_for_unlocked" -eq 1 ]; then
-  ui_print "Unlocked mode: Enabled"
+# Apply the patch only if superfloppy feature is enabled (mode 1, 2, or 3)
+if [ "$superfloppy_mode" -ge 1 ] && [ "$superfloppy_mode" -le 3 ]; then
+  ui_print "Unlocked mode: Enabled (Mode $superfloppy_mode)"
   ui_print " "
   ui_print "Patching kernel for unlocked mode..."
-  ui_print "superfloppy=0 -> superfloppy=1"
 
-  # Use the magiskboot binary from the tools folder to perform the hex patch on the kernel Image file.
-  # Original string: "superfloppy=0" -> Hex: 7375706572666c6f7070793d30
-  # New string:      "superfloppy=1" -> Hex: 7375706572666c6f7070793d31
-  $BIN/magiskboot hexpatch $AKHOME/Image \
-    7375706572666c6f7070793d30 \
-    7375706572666c6f7070793d31
+  # Hex values for superfloppy (hardcoded)
+  # -1: superfloppy=-1 -> 7375706572666c6f7070793d2d31
+  #  0: superfloppy=0  -> 7375706572666c6f7070793d30
+  #  1: superfloppy=1  -> 7375706572666c6f7070793d31
+  #  2: superfloppy=2  -> 7375706572666c6f7070793d32
+  #  3: superfloppy=3  -> 7375706572666c6f7070793d33
 
-  if [ $? -eq 0 ]; then
-    ui_print "Kernel successfully patched for unlocked mode."
+  case "$superfloppy_mode" in
+    1)
+      new_hex="7375706572666c6f7070793d31"
+      mode_name="Enabler"
+      ;;
+    2)
+      new_hex="7375706572666c6f7070793d32"
+      mode_name="MegaFloppy (2.6 GHz)"
+      ;;
+    3)
+      new_hex="7375706572666c6f7070793d33"
+      mode_name="UltraFloppy (2.7 GHz)"
+      ;;
+  esac
+
+  ui_print "Setting superfloppy mode to $superfloppy_mode ($mode_name)"
+
+  # Try patching from all possible old values (-1, 0, 1, 2, 3) to the new value
+  patch_success=0
+  for old_val in -1 0 1 2 3; do
+    case "$old_val" in
+      -1) old_hex="7375706572666c6f7070793d2d31" ;;
+      0)  old_hex="7375706572666c6f7070793d30" ;;
+      1)  old_hex="7375706572666c6f7070793d31" ;;
+      2)  old_hex="7375706572666c6f7070793d32" ;;
+      3)  old_hex="7375706572666c6f7070793d33" ;;
+    esac
+
+    # Skip if old and new are the same (use string comparison to handle -1)
+    if [ "$old_val" = "$superfloppy_mode" ]; then
+      continue
+    fi
+
+    $BIN/magiskboot hexpatch $AKHOME/Image \
+      "$old_hex" \
+      "$new_hex" 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+      ui_print "Patched from superfloppy=$old_val to superfloppy=$superfloppy_mode"
+      patch_success=1
+      break
+    fi
+  done
+
+  if [ "$patch_success" -eq 0 ]; then
+    # Check if already patched (kernel might already have the correct value)
+    if hexdump -C $AKHOME/Image 2>/dev/null | grep -qi "$new_hex" 2>/dev/null; then
+      ui_print "Kernel already has superfloppy=$superfloppy_mode set."
+    else
+      ui_print "ERROR: Kernel hex patching for unlocked mode failed! Aborting installation."
+      exit 1
+    fi
   else
-    ui_print "ERROR: Kernel hex patching for unlocked mode failed! Aborting installation."
-    exit 1
+    ui_print "Kernel successfully patched for unlocked mode."
   fi
 else
   ui_print "Unlocked mode: Disabled"
