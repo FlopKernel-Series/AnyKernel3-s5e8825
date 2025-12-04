@@ -1,4 +1,7 @@
-bool: superfloppy | Unlocked | CPU and GPU overclock for Floppy1280. Also disables undervolting.
+int: superfloppy | range: -1,127 | Unlocked | CPU and GPU overclock for Floppy1280. Also disables undervolting.
+valof: superfloppy | 1 | Enabler | CPU and GPU overclock for Floppy1280. Also disables undervolting.
+valof: superfloppy | 2 | Enabler_MegaFloppy | 2.6 GHz overclock.
+valof: superfloppy | 3 | Enabler_UltraFloppy | 2.7 GHz overclock.
 
 bool: force_perm | Permissive | Force SELinux permissive mode.
 
