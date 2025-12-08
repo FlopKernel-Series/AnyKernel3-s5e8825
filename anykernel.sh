@@ -102,15 +102,15 @@ if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
   superfloppy_line=$(grep "^superfloppy=" /cache/fk_feat 2>/dev/null | head -1)
   if [ -n "$superfloppy_line" ]; then
     superfloppy_mode=$(echo "$superfloppy_line" | cut -d'=' -f2)
-    # Validate mode is 1, 2, or 3
-    if [ "$superfloppy_mode" != "1" ] && [ "$superfloppy_mode" != "2" ] && [ "$superfloppy_mode" != "3" ]; then
+    # Validate mode is 1, 2, 3, or 4
+    if [ "$superfloppy_mode" != "1" ] && [ "$superfloppy_mode" != "2" ] && [ "$superfloppy_mode" != "3" ] && [ "$superfloppy_mode" != "4" ]; then
       superfloppy_mode=-1
     fi
   fi
 fi
 
-# Apply the patch only if superfloppy feature is enabled (mode 1, 2, or 3)
-if [ "$superfloppy_mode" -ge 1 ] && [ "$superfloppy_mode" -le 3 ]; then
+# Apply the patch only if superfloppy feature is enabled (mode 1, 2, 3, or 4)
+if [ "$superfloppy_mode" -ge 1 ] && [ "$superfloppy_mode" -le 4 ]; then
   ui_print "Unlocked mode: Enabled (Mode $superfloppy_mode)"
   ui_print " "
   ui_print "Patching kernel for unlocked mode..."
@@ -121,6 +121,7 @@ if [ "$superfloppy_mode" -ge 1 ] && [ "$superfloppy_mode" -le 3 ]; then
   #  1: superfloppy=1  -> 7375706572666c6f7070793d31
   #  2: superfloppy=2  -> 7375706572666c6f7070793d32
   #  3: superfloppy=3  -> 7375706572666c6f7070793d33
+  #  4: superfloppy=4  -> 7375706572666c6f7070793d34
 
   case "$superfloppy_mode" in
     1)
@@ -135,19 +136,24 @@ if [ "$superfloppy_mode" -ge 1 ] && [ "$superfloppy_mode" -le 3 ]; then
       new_hex="7375706572666c6f7070793d33"
       mode_name="UltraFloppy (2.7 GHz)"
       ;;
+    4)
+      new_hex="7375706572666c6f7070793d34"
+      mode_name="CoolFloppy (2.112 GHz cap)"
+      ;;
   esac
 
   ui_print "Setting superfloppy mode to $superfloppy_mode ($mode_name)"
 
-  # Try patching from all possible old values (-1, 0, 1, 2, 3) to the new value
+  # Try patching from all possible old values (-1, 0, 1, 2, 3, 4) to the new value
   patch_success=0
-  for old_val in -1 0 1 2 3; do
+  for old_val in -1 0 1 2 3 4; do
     case "$old_val" in
       -1) old_hex="7375706572666c6f7070793d2d31" ;;
       0)  old_hex="7375706572666c6f7070793d30" ;;
       1)  old_hex="7375706572666c6f7070793d31" ;;
       2)  old_hex="7375706572666c6f7070793d32" ;;
       3)  old_hex="7375706572666c6f7070793d33" ;;
+      4)  old_hex="7375706572666c6f7070793d34" ;;
     esac
 
     # Skip if old and new are the same (use string comparison to handle -1)
