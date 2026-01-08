@@ -3,6 +3,7 @@ valof: superfloppy | 1 | Enabler | CL0 2.2 GHz / CL1 2.496 GHz, GPU 1.209 GHz, U
 valof: superfloppy | 2 | Enabler_MegaFloppy | CL0 2.2 GHz / CL1 2.6 GHz, GPU 1.209 GHz, UV disabled by default.
 valof: superfloppy | 3 | Enabler_UltraFloppy | CL0 2.2 GHz / CL1 2.704 GHz, GPU 1.209 GHz, UV disabled by default.
 valof: superfloppy | 4 | Enabler_CoolFloppy | CL1 capped 2.112 GHz (better efficiency/thermals), GPU stock, UV enabled by default.
+valof: superfloppy | 5 | Enabler_BalancedFloppy | CL0 2.2 GHz (OC), CL1 stock 2.4 GHz, GPU stock, UV disabled by default.
 
 bool: force_perm | Permissive | Force SELinux permissive mode.
 
