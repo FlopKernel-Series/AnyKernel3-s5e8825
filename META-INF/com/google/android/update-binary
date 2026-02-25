@@ -563,7 +563,13 @@ do_levelcheck;
 do_vendorlevelcheck;
 
 ui_print "Installing...";
-ash anykernel.sh;
+if command -v ash >/dev/null 2>&1; then
+  ash anykernel.sh;
+elif [ -x "$AKHOME/tools/busybox" ]; then
+  "$AKHOME/tools/busybox" sh anykernel.sh;
+else
+  sh anykernel.sh;
+fi;
 if [ $? != 0 ]; then
   abort;
 fi;
