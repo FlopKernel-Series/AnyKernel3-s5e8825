@@ -566,7 +566,13 @@ ui_print "Installing...";
 # hack to maintain support for anykernel.sh files that weren't updated correctly along with the AK core
 CORE=$(grep -oE 'ak.*core.sh' anykernel.sh);
 [ -f tools/$CORE ] || ln -s $AKHOME/tools/ak*-core.sh $AKHOME/tools/$CORE;
-ash anykernel.sh;
+if command -v ash >/dev/null 2>&1; then
+  ash anykernel.sh;
+elif [ -x "$AKHOME/tools/busybox" ]; then
+  "$AKHOME/tools/busybox" sh anykernel.sh;
+else
+  sh anykernel.sh;
+fi;
 if [ $? != 0 ]; then
   abort;
 fi;
