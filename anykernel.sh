@@ -41,6 +41,17 @@ PATCH_VBMETA_FLAG=auto;
 # import functions/variables and setup patching - see for reference (DO NOT REMOVE)
 . tools/ak3-core.sh;
 
+printed_blank=0
+print_blank_once() {
+  if [ "$printed_blank" -eq 0 ]; then
+    ui_print " "
+    printed_blank=1
+  fi
+}
+log_rom()  { print_blank_once; ui_print "[ROM] $1"; }
+log_feat() { print_blank_once; ui_print "[FK]  $1"; }
+log_warn() { print_blank_once; ui_print "[!]   $1"; }
+
 apply_aosp_mode() {
   local mode=$1
   local hex_0="616f73705f6d6f64653d30"
@@ -56,7 +67,7 @@ detect_aosp_mode() {
   if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && \
      grep -q "aosp_mode=" /cache/fk_feat 2>/dev/null; then
     val=$(grep -o 'aosp_mode=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
-    ui_print "ROM mode override: aosp_mode=$val"
+    log_rom "Vendor type: override (aosp_mode=$val)"
     apply_aosp_mode "$val"
     return 0
   fi
@@ -69,25 +80,20 @@ detect_aosp_mode() {
   case "$vendor_src" in
     /dev/block/*) ;;
     *)
-      ui_print "-> OneUI or stock-based ROM detected (vendor not block-mounted)!"
-      ui_print "No patch needed, using default cmdline."
+      log_rom "Vendor type: OneUI or stock-based (vendor not block-mounted)"
       return 0
       ;;
   esac
 
   if [ -d /vendor/overlay/ConnectivityOverlay ] || [ -d /vendor/overlay/TetheringOverlay ]; then
-    ui_print "-> OneUI (Stock) ROM detected!"
-    ui_print "No patch needed, using default cmdline."
+    log_rom "Vendor type: OneUI or stock-based"
   else
-    ui_print "-> AOSP-based ROM detected!"
-    ui_print " "
-    ui_print "Patching kernel for AOSP compatibility..."
-    ui_print "aosp_mode=0 -> aosp_mode=1"
+    log_rom "Vendor type: AOSP"
     apply_aosp_mode 1
     if [ $? -eq 0 ]; then
-      ui_print "Kernel successfully patched."
+      log_feat "aosp_mode: patched (0 -> 1)"
     else
-      ui_print "ERROR: Kernel hex patching failed! Aborting installation."
+      log_warn "aosp_mode: hex patch failed! Aborting installation."
       exit 1
     fi
   fi
@@ -117,7 +123,7 @@ apply_superfloppy() {
 
   [ -f "$AKHOME/Image" ] || return 0
 
-  ui_print "Setting superfloppy mode to $mode ($mode_name)"
+  log_feat "Unlocked mode: setting superfloppy=$mode ($mode_name)"
 
   patch_success=0
   for old_val in -1 0 1 2 3 4 5; do
@@ -135,7 +141,7 @@ apply_superfloppy() {
 
     $BIN/magiskboot hexpatch "$AKHOME/Image" "$old_hex" "$new_hex" 2>/dev/null
     if [ $? -eq 0 ]; then
-      ui_print "Patched from superfloppy=$old_val to superfloppy=$mode"
+      log_feat "superfloppy: patched ($old_val -> $mode)"
       patch_success=1
       break
     fi
@@ -143,13 +149,11 @@ apply_superfloppy() {
 
   if [ "$patch_success" -eq 0 ]; then
     if hexdump -C "$AKHOME/Image" 2>/dev/null | grep -qi "$new_hex" 2>/dev/null; then
-      ui_print "Kernel already has superfloppy=$mode set."
+      log_feat "superfloppy: already set to $mode"
     else
-      ui_print "ERROR: Kernel hex patching for unlocked mode failed! Aborting installation."
+      log_warn "superfloppy: hex patch failed! Aborting installation."
       exit 1
     fi
-  else
-    ui_print "Kernel successfully patched for unlocked mode."
   fi
 }
 
@@ -182,9 +186,6 @@ else
 fi
 
 # Check for feature flags in /cache/fk_feat
-ui_print " "
-ui_print "Checking for unlocked mode feature flag..."
-
 superfloppy_mode=-1;
 if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
   superfloppy_line=$(grep "^superfloppy=" /cache/fk_feat 2>/dev/null | head -1)
@@ -197,45 +198,35 @@ if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
 fi
 
 if [ "$superfloppy_mode" -ge 1 ] && [ "$superfloppy_mode" -le 5 ]; then
-  ui_print "Unlocked mode: Enabled (Mode $superfloppy_mode)"
-  ui_print " "
-  ui_print "Patching kernel for unlocked mode..."
+  log_feat "Unlocked mode: enabled (mode $superfloppy_mode)"
   apply_superfloppy "$superfloppy_mode"
 else
-  ui_print "Unlocked mode: Disabled"
+  log_feat "Unlocked mode: disabled"
 fi
 
 if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && grep -q "force_perm" /cache/fk_feat 2>/dev/null; then
-  ui_print "Permissive mode: Enabled"
-  ui_print " "
-  ui_print "Patching kernel for permissive mode..."
-  ui_print "force_perm=0 -> force_perm=1"
+  log_feat "Permissive mode: enabled"
   apply_force_perm
   if [ $? -eq 0 ]; then
-    ui_print "Kernel successfully patched for permissive mode."
+    log_feat "force_perm: patched (0 -> 1)"
   else
-    ui_print "ERROR: Kernel hex patching for permissive mode failed! Aborting installation."
+    log_warn "force_perm: hex patch failed! Aborting installation."
     exit 1
   fi
 fi
 
 if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && grep -q "ems_efficient" /cache/fk_feat 2>/dev/null; then
-  ui_print "EMS efficient mode: Enabled"
-  ui_print " "
-  ui_print "Patching kernel for EMS efficient mode..."
-  ui_print "ems_efficient=0 -> ems_efficient=1"
+  log_feat "EMS efficient mode: enabled"
   apply_ems_efficient
   if [ $? -eq 0 ]; then
-    ui_print "Kernel successfully patched for EMS efficient mode."
+    log_feat "ems_efficient: patched (0 -> 1)"
   else
-    ui_print "ERROR: Kernel hex patching for EMS efficient mode failed! Aborting installation."
+    log_warn "ems_efficient: hex patch failed! Aborting installation."
     exit 1
   fi
 fi
 
 # Detect ROM type and patch aosp_mode accordingly
-ui_print " "
-ui_print "Detecting ROM type for patching..."
 detect_aosp_mode
 
 # boot install
