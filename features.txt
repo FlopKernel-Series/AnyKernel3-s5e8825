@@ -8,3 +8,8 @@ valof: superfloppy | 5 | Enabler_BalancedFloppy | CL0 2.2 GHz (OC), CL1 stock 2.
 bool: force_perm | Permissive | Force SELinux permissive mode.
 
 bool: ems_efficient | EMSefficient | Enable EMS efficient mode.
+
+select: mali.version | MaliVersion | Mali KMD version selector
+valof: mali.version | r32p1 | r32p1 | Mali r32p1 KMD
+valof: mali.version | r38p1 | r38p1 | Mali r38p1 KMD (default)
+valof: mali.version | r44p1 | r44p1 | Mali r44p1 KMD

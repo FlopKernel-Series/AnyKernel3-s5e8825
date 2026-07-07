@@ -181,10 +181,14 @@ fi
 PATCH_SUCCESS=0
 SKIP_WRITE_BOOT=0
 
-# Check if this is an int type (has range) or bool type
+# Check if this is an int type (has range), select type (has values list), or bool type
 IS_INT_TYPE=0
+IS_SELECT_TYPE=0
 if [ -n "$GENERAL_DESC" ] && [ -n "$RANGE_MIN" ] && [ -n "$RANGE_MAX" ]; then
   IS_INT_TYPE=1
+fi
+if [ -f "$AKHOME/patcher_values_list" ]; then
+  IS_SELECT_TYPE=1
 fi
 
 if [ "$IS_INT_TYPE" -eq 1 ]; then
@@ -232,6 +236,30 @@ if [ "$IS_INT_TYPE" -eq 1 ]; then
       # Increment using arithmetic expansion for better compatibility
       i=$((i + 1))
     done
+  fi
+elif [ "$IS_SELECT_TYPE" -eq 1 ]; then
+  # For select (string enum) types, try each known value from patcher_values_list
+  TARGET_VALUE=$(cat "$AKHOME/patcher_value" 2>/dev/null | tr -d '\n')
+  KNOWN_VALUES=$(cat "$AKHOME/patcher_values_list" 2>/dev/null)
+
+  if [ -n "$TARGET_VALUE" ] && [ -n "$KNOWN_VALUES" ]; then
+    # Try each known value as the old pattern
+    while IFS= read -r known_val; do
+      [ -z "$known_val" ] && continue
+      PATCH_OLD_TRY=$(echo -n "${FEATURE_FLAG}=${known_val}" | xxd -p | tr -d '\n' 2>/dev/null)
+      PATCH_NEW_TRY=$(echo -n "${FEATURE_FLAG}=${TARGET_VALUE}" | xxd -p | tr -d '\n' 2>/dev/null)
+      if [ -n "$PATCH_OLD_TRY" ] && [ -n "$PATCH_NEW_TRY" ]; then
+        $BIN/magiskboot hexpatch "$KERNEL_FILE" \
+          "$PATCH_OLD_TRY" \
+          "$PATCH_NEW_TRY" 2>/dev/null
+        if [ $? -eq 0 ]; then
+          PATCH_SUCCESS=1
+          break
+        fi
+      fi
+    done <<EOF
+$KNOWN_VALUES
+EOF
   fi
 else
   # For bool types, use the provided old value (pre-generated in zip)

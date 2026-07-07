@@ -165,6 +165,72 @@ def process_bool_type(flag, feature_name, comment, script_dir, patcher_template,
     print()
 
 
+def process_select_type(flag, feature_name, general_desc, values, script_dir, patcher_template, output_dir, date):
+    """Process a select (string enum) type feature and generate value zips."""
+    print(f"Processing select: {flag} -> {feature_name}")
+
+    # Collect all known values
+    known_values = []
+    valofs = []
+
+    for value_line in values:
+        parts = [p.strip() for p in value_line.split('|')]
+        if len(parts) < 3:
+            continue
+
+        val_flag = parts[0]
+        val_value = parts[1]
+        val_name = parts[2]
+        val_desc = parts[3] if len(parts) > 3 else ""
+
+        if not val_value or not val_name:
+            continue
+
+        known_values.append(val_value)
+        valofs.append((val_value, val_name, val_desc))
+
+    # Process each value
+    for val_value, val_name, val_desc in valofs:
+        print(f"  Processing value: {val_value} -> {val_name}")
+
+        # Generate hex patch values (patcher will try all known values dynamically)
+        patch_old_set = generate_hex_patch(f"{flag}={known_values[0]}")
+        patch_new_set = generate_hex_patch(f"{flag}={val_value}")
+
+        # Create value zip
+        value_zip = output_dir / f"Floppy_{feature_name}-{val_name}-{date}.zip"
+        value_work_dir = script_dir / "out" / f"value_{flag}_{val_value}"
+        if value_work_dir.exists():
+            shutil.rmtree(value_work_dir)
+        value_work_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy patcher template (exclude build artifacts)
+        copy_directory_excluding(
+            patcher_template,
+            value_work_dir,
+            ['out', 'patcher_zips', 'generate_patchers.sh', 'generate_patchers.py', 'features.txt']
+        )
+
+        # Create action, feature, and patch files
+        (value_work_dir / "patcher_action").write_text("set")
+        (value_work_dir / "patcher_feature").write_text(flag)
+        (value_work_dir / "patcher_feature_name").write_text(feature_name)
+        (value_work_dir / "patcher_general_desc").write_text(general_desc)
+        (value_work_dir / "patcher_value_desc").write_text(val_desc)
+        (value_work_dir / "patcher_value").write_text(val_value)
+        (value_work_dir / "patcher_values_list").write_text("\n".join(known_values))
+        (value_work_dir / "patcher_patch_old").write_text(patch_old_set)
+        (value_work_dir / "patcher_patch_new").write_text(patch_new_set)
+
+        # Create zip
+        create_zip_from_directory(value_work_dir, value_zip)
+
+        shutil.rmtree(value_work_dir)
+        print(f"    Created: {value_zip.name}")
+
+    print()
+
+
 def process_int_type(flag, range_min, range_max, feature_name, general_desc, values, script_dir, patcher_template, output_dir, date):
     """Process an integer type feature and generate value zips plus disabler."""
     print(f"Processing int: {flag} -> {feature_name} (range: {range_min}-{range_max})")
@@ -313,11 +379,17 @@ def main():
 
             # Check for type definition
             if line.startswith('bool:'):
-                # Process previous int type if any
+                # Process previous int or select type if any
                 if current_type == 'int' and int_values:
                     process_int_type(
                         current_flag, current_range_min, current_range_max,
                         current_feature_name, current_general_desc, int_values,
+                        script_dir, patcher_template, output_dir, date
+                    )
+                    int_values = []
+                elif current_type == 'select' and int_values:
+                    process_select_type(
+                        current_flag, current_feature_name, current_general_desc, int_values,
                         script_dir, patcher_template, output_dir, date
                     )
                     int_values = []
@@ -336,12 +408,48 @@ def main():
                         )
                 current_type = None
 
-            elif line.startswith('int:'):
-                # Process previous int type if any
+            elif line.startswith('select:'):
+                # Process previous int or select type if any
                 if current_type == 'int' and int_values:
                     process_int_type(
                         current_flag, current_range_min, current_range_max,
                         current_feature_name, current_general_desc, int_values,
+                        script_dir, patcher_template, output_dir, date
+                    )
+                    int_values = []
+                elif current_type == 'select' and int_values:
+                    process_select_type(
+                        current_flag, current_feature_name, current_general_desc, int_values,
+                        script_dir, patcher_template, output_dir, date
+                    )
+                    int_values = []
+
+                # Parse select type: select: flag | FeatureName | Description
+                rest = line[7:].strip()
+                parts = [p.strip() for p in rest.split('|')]
+                if len(parts) >= 2:
+                    flag = parts[0]
+                    feature_name = parts[1]
+                    general_desc = parts[2] if len(parts) > 2 else ""
+
+                    current_type = 'select'
+                    current_flag = flag
+                    current_feature_name = feature_name
+                    current_general_desc = general_desc
+                    int_values = []
+
+            elif line.startswith('int:'):
+                # Process previous int or select type if any
+                if current_type == 'int' and int_values:
+                    process_int_type(
+                        current_flag, current_range_min, current_range_max,
+                        current_feature_name, current_general_desc, int_values,
+                        script_dir, patcher_template, output_dir, date
+                    )
+                    int_values = []
+                elif current_type == 'select' and int_values:
+                    process_select_type(
+                        current_flag, current_feature_name, current_general_desc, int_values,
                         script_dir, patcher_template, output_dir, date
                     )
                     int_values = []
@@ -373,19 +481,25 @@ def main():
                     int_values = []
 
             elif line.startswith('valof:'):
-                if current_type == 'int':
+                if current_type in ('int', 'select'):
                     # Parse value definition
                     rest = line[6:].strip()
                     int_values.append(rest)
 
             else:
                 # Legacy format (bool without type prefix) - treat as bool
-                if current_type != 'int':
-                    # Process previous int type if any
+                if current_type not in ('int', 'select'):
+                    # Process previous int or select type if any
                     if current_type == 'int' and int_values:
                         process_int_type(
                             current_flag, current_range_min, current_range_max,
                             current_feature_name, current_general_desc, int_values,
+                            script_dir, patcher_template, output_dir, date
+                        )
+                        int_values = []
+                    elif current_type == 'select' and int_values:
+                        process_select_type(
+                            current_flag, current_feature_name, current_general_desc, int_values,
                             script_dir, patcher_template, output_dir, date
                         )
                         int_values = []
@@ -401,11 +515,16 @@ def main():
                                 script_dir, patcher_template, output_dir, date
                             )
 
-    # Process any remaining int type
+    # Process any remaining int or select type
     if current_type == 'int' and int_values:
         process_int_type(
             current_flag, current_range_min, current_range_max,
             current_feature_name, current_general_desc, int_values,
+            script_dir, patcher_template, output_dir, date
+        )
+    elif current_type == 'select' and int_values:
+        process_select_type(
+            current_flag, current_feature_name, current_general_desc, int_values,
             script_dir, patcher_template, output_dir, date
         )
 
