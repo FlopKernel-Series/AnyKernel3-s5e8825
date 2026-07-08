@@ -175,6 +175,49 @@ apply_ems_efficient() {
   $BIN/magiskboot hexpatch "$AKHOME/Image" "$hex_0" "$hex_1" >/dev/null 2>&1
 }
 
+apply_mali_version() {
+  local target=$1
+  local new_hex mode_name
+
+  case "$target" in
+    r32p1) new_hex="6d616c692e76657273696f6e3d7233327031"; mode_name="r32p1" ;;
+    r38p1) new_hex="6d616c692e76657273696f6e3d7233387031"; mode_name="r38p1" ;;
+    r44p1) new_hex="6d616c692e76657273696f6e3d7234347031"; mode_name="r44p1" ;;
+    *) return 1 ;;
+  esac
+
+  [ -f "$AKHOME/Image" ] || return 0
+
+  log_feat "Mali version: restoring $mode_name"
+
+  patch_success=0
+  for old_val in r32p1 r38p1 r44p1; do
+    [ "$old_val" = "$target" ] && continue
+
+    case "$old_val" in
+      r32p1) old_hex="6d616c692e76657273696f6e3d7233327031" ;;
+      r38p1) old_hex="6d616c692e76657273696f6e3d7233387031" ;;
+      r44p1) old_hex="6d616c692e76657273696f6e3d7234347031" ;;
+    esac
+
+    $BIN/magiskboot hexpatch "$AKHOME/Image" "$old_hex" "$new_hex" 2>/dev/null
+    if [ $? -eq 0 ]; then
+      log_feat "mali.version: patched ($old_val -> $target)"
+      patch_success=1
+      break
+    fi
+  done
+
+  if [ "$patch_success" -eq 0 ]; then
+    if hexdump -C "$AKHOME/Image" 2>/dev/null | grep -qi "$new_hex" 2>/dev/null; then
+      log_feat "mali.version: already set to $mode_name"
+    else
+      log_warn "mali.version: hex patch failed! Aborting installation."
+      exit 1
+    fi
+  fi
+}
+
 # Check if /cache is mounted, try to mount if not
 cache_mounted=0;
 if mountpoint -q /cache 2>/dev/null; then
@@ -187,6 +230,7 @@ fi
 
 # Check for feature flags in /cache/fk_feat
 superfloppy_mode=-1;
+mali_version="";
 if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
   superfloppy_line=$(grep "^superfloppy=" /cache/fk_feat 2>/dev/null | head -1)
   if [ -n "$superfloppy_line" ]; then
@@ -194,6 +238,11 @@ if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ]; then
     if [ "$superfloppy_mode" != "1" ] && [ "$superfloppy_mode" != "2" ] && [ "$superfloppy_mode" != "3" ] && [ "$superfloppy_mode" != "4" ] && [ "$superfloppy_mode" != "5" ]; then
       superfloppy_mode=-1
     fi
+  fi
+
+  mali_version_line=$(grep "^mali.version=" /cache/fk_feat 2>/dev/null | head -1)
+  if [ -n "$mali_version_line" ]; then
+    mali_version=$(echo "$mali_version_line" | cut -d'=' -f2)
   fi
 fi
 
@@ -224,6 +273,11 @@ if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && grep -q "ems_efficient
     log_warn "ems_efficient: hex patch failed! Aborting installation."
     exit 1
   fi
+fi
+
+# Restore mali.version if saved in /cache/fk_feat
+if [ -n "$mali_version" ]; then
+  apply_mali_version "$mali_version"
 fi
 
 # Detect ROM type and patch aosp_mode accordingly
