@@ -63,12 +63,55 @@ apply_aosp_mode() {
   $BIN/magiskboot hexpatch "$AKHOME/Image" "$hex_0" "$hex_1" >/dev/null 2>&1
 }
 
+apply_usb_aoffload_disable() {
+  local mode=$1
+  local hex_0="7573625f616f66666c6f61645f64697361626c653d30"
+  local hex_1="7573625f616f66666c6f61645f64697361626c653d31"
+
+  [ "$mode" = "1" ] || return 0
+  [ -f "$AKHOME/Image" ] || return 0
+
+  $BIN/magiskboot hexpatch "$AKHOME/Image" "$hex_0" "$hex_1" >/dev/null 2>&1
+}
+
+check_usb_aoffload_support() {
+  if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && \
+     grep -q "usb_aoffload_disable=" /cache/fk_feat 2>/dev/null; then
+    val=$(grep -o 'usb_aoffload_disable=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
+    log_rom "USB Audio Offload: override (usb_aoffload_disable=$val)"
+    apply_usb_aoffload_disable "$val"
+    return 0
+  fi
+
+  local lib_audioproxy=""
+  if [ -f /vendor/lib64/libaudioproxy.so ]; then
+    lib_audioproxy="/vendor/lib64/libaudioproxy.so"
+  elif [ -f /vendor/lib/libaudioproxy.so ]; then
+    lib_audioproxy="/vendor/lib/libaudioproxy.so"
+  fi
+
+  if [ -n "$lib_audioproxy" ] && strings "$lib_audioproxy" 2>/dev/null | grep -q "audio_hw_proxy_usb"; then
+    log_rom "USB Audio Offload: HAL support detected"
+  else
+    log_rom "USB Audio Offload: unsupported by HAL"
+    apply_usb_aoffload_disable 1
+    if [ $? -eq 0 ]; then
+      log_feat "usb_aoffload_disable: patched (0 -> 1)"
+    else
+      log_warn "usb_aoffload_disable: hex patch failed!"
+    fi
+  fi
+}
+
 detect_aosp_mode() {
   if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && \
      grep -q "aosp_mode=" /cache/fk_feat 2>/dev/null; then
     val=$(grep -o 'aosp_mode=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
     log_rom "Vendor type: override (aosp_mode=$val)"
     apply_aosp_mode "$val"
+    if [ "$val" -eq 1 ]; then
+      check_usb_aoffload_support
+    fi
     return 0
   fi
 
@@ -92,6 +135,7 @@ detect_aosp_mode() {
     apply_aosp_mode 1
     if [ $? -eq 0 ]; then
       log_feat "aosp_mode: patched (0 -> 1)"
+      check_usb_aoffload_support
     else
       log_warn "aosp_mode: hex patch failed! Aborting installation."
       exit 1
