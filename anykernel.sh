@@ -143,6 +143,32 @@ detect_aosp_mode() {
   fi
 }
 
+repack_vendor_boot_modules() {
+  local block dlkm_fragment path workdir
+
+  dlkm_fragment="$AKHOME/vendor_ramdisk_dlkm.lz4"
+  [ -f "$dlkm_fragment" ] || abort "Vendor DLKM ramdisk is missing. Aborting..."
+
+  for path in /dev/block/by-name /dev/block/bootdevice/by-name; do
+    for block in "$path/vendor_boot$SLOT" "$path/vendor_boot"; do
+      [ -e "$block" ] && break 2
+    done
+  done
+  [ -e "$block" ] || abort "vendor_boot partition could not be found. Aborting..."
+
+  workdir="$AKHOME/vendor_boot-work"
+  mkdir -p "$workdir" || abort "Failed to prepare vendor_boot workspace. Aborting..."
+
+  ui_print " " "Backing up $block..."
+  dd if="$block" of="$workdir/vendor_boot.orig" bs=1048576 || \
+    abort "Dumping vendor_boot failed. Aborting..."
+
+  ui_print " " "Replacing vendor_boot DLKM modules..."
+  "$BIN/vendor_boot_repack" "$workdir/vendor_boot.orig" "$dlkm_fragment" \
+    "$AKHOME/vendor_boot.img" || abort "Repacking vendor_boot v4 failed. Aborting..."
+
+}
+
 apply_superfloppy() {
   local mode=$1
   local new_hex mode_name
@@ -333,5 +359,6 @@ dump_boot; # use split_boot to skip ramdisk unpack, e.g. for devices with init_b
 write_boot; # use flash_boot to skip ramdisk repack, e.g. for devices with init_boot ramdisk
 ## end boot install
 
+repack_vendor_boot_modules
+# Flash modified image
 flash_generic vendor_boot;
-
