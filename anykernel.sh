@@ -144,10 +144,12 @@ detect_aosp_mode() {
 }
 
 repack_vendor_boot_modules() {
-  local block dlkm_fragment path workdir
+  local block dlkm_fragment dtb_file path workdir
 
   dlkm_fragment="$AKHOME/vendor_ramdisk_dlkm.lz4"
+  dtb_file="$AKHOME/platform.dtb"
   [ -f "$dlkm_fragment" ] || abort "Vendor DLKM ramdisk is missing. Aborting..."
+  [ -f "$dtb_file" ] || abort "Vendor platform DTB is missing. Aborting..."
 
   for path in /dev/block/by-name /dev/block/bootdevice/by-name; do
     for block in "$path/vendor_boot$SLOT" "$path/vendor_boot"; do
@@ -163,9 +165,9 @@ repack_vendor_boot_modules() {
   dd if="$block" of="$workdir/vendor_boot.orig" bs=1048576 || \
     abort "Dumping vendor_boot failed. Aborting..."
 
-  ui_print " " "Replacing vendor_boot DLKM modules..."
+  ui_print " " "Replacing vendor_boot DLKM modules and DTB..."
   "$BIN/vendor_boot_repack" "$workdir/vendor_boot.orig" "$dlkm_fragment" \
-    "$AKHOME/vendor_boot.img" || abort "Repacking vendor_boot v4 failed. Aborting..."
+    "$dtb_file" "$AKHOME/vendor_boot.img" || abort "Repacking vendor_boot v4 failed. Aborting..."
 
 }
 
