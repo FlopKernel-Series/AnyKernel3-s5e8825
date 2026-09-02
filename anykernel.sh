@@ -247,6 +247,23 @@ apply_ems_efficient() {
   $BIN/magiskboot hexpatch "$AKHOME/Image" "$hex_0" "$hex_1" >/dev/null 2>&1
 }
 
+apply_init_debug() {
+  local mode=$1
+  local hex_0="696e69745f64656275673d30"
+  local hex_1="696e69745f64656275673d31"
+  local target_hex="$hex_0"
+
+  case "$mode" in
+    1) target_hex="$hex_1" ;;
+    *) target_hex="$hex_0" ;;
+  esac
+
+  [ -f "$AKHOME/Image" ] || return 0
+
+  $BIN/magiskboot hexpatch "$AKHOME/Image" "$hex_0" "$target_hex" >/dev/null 2>&1
+  $BIN/magiskboot hexpatch "$AKHOME/Image" "$hex_1" "$target_hex" >/dev/null 2>&1
+}
+
 apply_mali_version() {
   local target=$1
   local new_hex mode_name
@@ -345,6 +362,22 @@ if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && grep -q "ems_efficient
     log_warn "ems_efficient: hex patch failed! Aborting installation."
     exit 1
   fi
+fi
+
+if [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && grep -q "init_debug=" /cache/fk_feat 2>/dev/null; then
+  val=$(grep -o 'init_debug=[0-9]*' /cache/fk_feat | head -n1 | cut -d= -f2)
+  case "$val" in
+    1)
+      log_feat "InitDebug: enabled"
+      apply_init_debug "$val"
+      ;;
+    0)
+      apply_init_debug "$val"
+      ;;
+  esac
+elif [ "$cache_mounted" -eq 1 ] && [ -f /cache/fk_feat ] && grep -q "init_debug" /cache/fk_feat 2>/dev/null; then
+  log_feat "InitDebug: enabled"
+  apply_init_debug 1
 fi
 
 # Restore mali.version if saved in /cache/fk_feat
