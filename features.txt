@@ -9,6 +9,8 @@ bool: force_perm | Permissive | Force SELinux permissive mode.
 
 bool: ems_efficient | EMSefficient | Enable EMS efficient mode.
 
+bool: init_debug | InitDebug | Inject init.rc service to dump logcat to /cache/logcat.txt for debugging early init issues.
+
 select: mali.version | MaliVersion | Mali KMD version selector
 valof: mali.version | r32p1 | r32p1 | Mali r32p1 KMD
 valof: mali.version | r38p1 | r38p1 | Mali r38p1 KMD (default)
