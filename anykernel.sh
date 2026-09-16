@@ -272,6 +272,7 @@ apply_mali_version() {
     r32p1) new_hex="6d616c692e76657273696f6e3d7233327031"; mode_name="r32p1" ;;
     r38p1) new_hex="6d616c692e76657273696f6e3d7233387031"; mode_name="r38p1" ;;
     r44p1) new_hex="6d616c692e76657273696f6e3d7234347031"; mode_name="r44p1" ;;
+    r54p3) new_hex="6d616c692e76657273696f6e3d7235347033"; mode_name="r54p3" ;;
     panfr|panfrost) new_hex="6d616c692e76657273696f6e3d70616e6672"; mode_name="Panfrost" ;;
     *) return 1 ;;
   esac
@@ -281,13 +282,14 @@ apply_mali_version() {
   log_feat "Mali version: restoring $mode_name"
 
   patch_success=0
-  for old_val in r32p1 r38p1 r44p1 panfr; do
+  for old_val in r32p1 r38p1 r44p1 r54p3 panfr; do
     [ "$old_val" = "$target" ] && continue
 
     case "$old_val" in
       r32p1) old_hex="6d616c692e76657273696f6e3d7233327031" ;;
       r38p1) old_hex="6d616c692e76657273696f6e3d7233387031" ;;
       r44p1) old_hex="6d616c692e76657273696f6e3d7234347031" ;;
+      r54p3) old_hex="6d616c692e76657273696f6e3d7235347033" ;;
       panfr|panfrost) old_hex="6d616c692e76657273696f6e3d70616e6672" ;;
     esac
 
