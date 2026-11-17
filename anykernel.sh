@@ -168,3 +168,10 @@ write_boot; # use flash_boot to skip ramdisk repack, e.g. for devices with init_
 repack_vendor_boot_modules
 # Flash modified image
 flash_generic vendor_boot;
+
+# flash the DTBO overlay image for this device
+if [ -f "$AKHOME/dtbo.img" ]; then
+  flash_generic dtbo;
+else
+  log_warn "dtbo.img not found in zip, keeping the stock DTBO";
+fi
